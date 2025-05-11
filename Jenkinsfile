@@ -1,9 +1,15 @@
-/pipeline {
+pipeline {
   agent any
 
   environment {
+    // update this to match the Jenkins credential ID you created
     DOCKER_HUB_CREDENTIALS = 'dockerhub-credentials'
     DOCKER_IMAGE            = 'shayancyan/mlops-project'
+  }
+
+  // optional: fallback polling every 5 minutes if webhook is missed
+  triggers {
+    pollSCM('H/5 * * * *')
   }
 
   stages {
@@ -15,7 +21,15 @@
 
     stage('Build Docker Image') {
       when {
-        changeRequest target: 'test'
+        anyOf {
+          // PRs whose target branch is `test`
+          changeRequest target: 'test'
+          // any direct commits (push/merge) into `test`
+          branch 'test'
+          // if you also want to build for main
+          // changeRequest target: 'main'
+          // branch 'main'
+        }
       }
       steps {
         script {
@@ -28,7 +42,10 @@
 
     stage('Run Tests') {
       when {
-        changeRequest target: 'test'
+        anyOf {
+          changeRequest target: 'test'
+          branch 'test'
+        }
       }
       steps {
         sh '''
@@ -41,7 +58,10 @@
 
     stage('Push to Docker Hub') {
       when {
-        changeRequest target: 'test'
+        anyOf {
+          changeRequest target: 'test'
+          branch 'test'
+        }
       }
       steps {
         script {
@@ -59,10 +79,10 @@
 
   post {
     success {
-      echo "✅ PR → test pipeline succeeded: pushed ${DOCKER_IMAGE}:${BUILD_NUMBER} & :latest"
+      echo "✅ Pipeline succeeded on ${env.BRANCH_NAME} (Build #${env.BUILD_NUMBER})"
     }
     failure {
-      echo "❌ PR → test pipeline failed."
+      echo "❌ Pipeline failed on ${env.BRANCH_NAME}"
     }
   }
 }
