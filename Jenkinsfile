@@ -4,6 +4,7 @@ pipeline {
   environment {
     DOCKER_HUB_CREDENTIALS = 'dockerhub-credentials'
     DOCKER_IMAGE           = 'shayancyan/mlops-project'
+    IMAGE_TAG              = 'latest'
   }
 
   triggers {
@@ -13,20 +14,14 @@ pipeline {
 
   stages {
     stage('Checkout') {
-      steps {
-        checkout scm
-      }
+      steps { checkout scm }
     }
 
-    stage('Build Docker Image') {
+    stage('Build & Tag Docker Image') {
       steps {
         script {
-          // Build and tag
-          def builtImage = docker.build(
-            "${env.DOCKER_IMAGE}:${env.BUILD_NUMBER}"
-          )
-          // Record the tag
-          env.BUILT_IMAGE = "${env.DOCKER_IMAGE}:${env.BUILD_NUMBER}"
+          // build with a fixed 'latest' tag every time
+          docker.build("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}")
         }
       }
     }
@@ -34,12 +29,8 @@ pipeline {
     stage('Push to Docker Hub') {
       steps {
         script {
-          docker.withRegistry(
-            'https://index.docker.io/v1/',
-            DOCKER_HUB_CREDENTIALS
-          ) {
-            docker.image(env.BUILT_IMAGE).push('latest')
-            docker.image(env.BUILT_IMAGE).push("${env.BUILD_NUMBER}")
+          docker.withRegistry('https://index.docker.io/v1/', DOCKER_HUB_CREDENTIALS) {
+            docker.image("${env.DOCKER_IMAGE}:${env.IMAGE_TAG}").push()
           }
         }
       }
@@ -48,10 +39,10 @@ pipeline {
 
   post {
     success {
-      echo "✅ Build #${env.BUILD_NUMBER} succeeded; image pushed."
+      echo "✅ Successfully built & pushed ${DOCKER_IMAGE}:${IMAGE_TAG}"
     }
     failure {
-      echo "❌ Build #${env.BUILD_NUMBER} failed."
+      echo "❌ Build failed"
     }
   }
 }
