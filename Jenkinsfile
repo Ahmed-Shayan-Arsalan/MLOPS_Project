@@ -3,13 +3,11 @@ pipeline {
 
   environment {
     DOCKER_HUB_CREDENTIALS = 'dockerhub-credentials'
-    DOCKER_IMAGE            = 'shayancyan/mlops-project'
+    DOCKER_IMAGE           = 'shayancyan/mlops-project'
   }
 
   triggers {
-    // react to GitHub webhooks for PRs & pushes
     githubPush()
-    // fallback polling every 5 minutes
     pollSCM('H/5 * * * *')
   }
 
@@ -23,18 +21,25 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         script {
-          dockerImage = docker.build("${DOCKER_IMAGE}:${env.BUILD_NUMBER}")
+          // declare variable to avoid memory-leak warning
+          def builtImage = docker.build(
+            "${env.DOCKER_IMAGE}:${env.BUILD_NUMBER}"
+          )
+          // stash it for later stages
+          env.BUILT_IMAGE = "${env.DOCKER_IMAGE}:${env.BUILD_NUMBER}"
         }
       }
     }
 
     stage('Run Tests') {
       steps {
-        sh """
-          docker run --rm \
-            ${DOCKER_IMAGE}:${BUILD_NUMBER} \
-            pytest --maxfail=1 --disable-warnings -q
-        """
+        script {
+          if (isUnix()) {
+            sh "docker run --rm ${env.BUILT_IMAGE} pytest --maxfail=1 --disable-warnings -q"
+          } else {
+            bat "docker run --rm ${env.BUILT_IMAGE} pytest --maxfail=1 --disable-warnings -q"
+          }
+        }
       }
     }
 
@@ -42,8 +47,8 @@ pipeline {
       steps {
         script {
           docker.withRegistry('https://index.docker.io/v1/', DOCKER_HUB_CREDENTIALS) {
-            dockerImage.push('latest')
-            dockerImage.push("${BUILD_NUMBER}")
+            docker.image(env.BUILT_IMAGE).push('latest')
+            docker.image(env.BUILT_IMAGE).push("${env.BUILD_NUMBER}")
           }
         }
       }
@@ -52,10 +57,10 @@ pipeline {
 
   post {
     success {
-      echo "✅ Build #${BUILD_NUMBER} succeeded on test"
+      echo "✅ Build #${env.BUILD_NUMBER} succeeded on test"
     }
     failure {
-      echo "❌ Build #${BUILD_NUMBER} failed on test"
+      echo "❌ Build #${env.BUILD_NUMBER} failed on test"
     }
   }
 }
