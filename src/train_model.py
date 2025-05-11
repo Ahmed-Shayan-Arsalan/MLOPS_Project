@@ -11,7 +11,7 @@ def load_data(path: str) -> pd.DataFrame:
 
 def train_and_evaluate(df: pd.DataFrame) -> Tuple[LinearRegression, float]:
     """
-    Training a simple Year→Survival_Years linear model and return (model, MSE).
+    Train a simple Year→Survival_Years linear model and return (model, MSE).
     Expects columns 'Year' and 'Survival_Years'.
     """
     X = df[['Year']].values.reshape(-1, 1)
