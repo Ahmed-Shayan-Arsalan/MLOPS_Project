@@ -1,34 +1,43 @@
 name: CI
 
+# Trigger on pushes and PRs to dev
 on:
   push:
-    branches: [ dev ]
+    branches:
+      - dev
+  pull_request:
+    branches:
+      - dev
 
 jobs:
-  lint-and-test:
+  build-and-test:
     runs-on: ubuntu-latest
 
-    # ← add this so Python (and Flake8/pytest) sees `src/` as a module
-    env:
-      PYTHONPATH: ./src
-
     steps:
+      # 1. Check out the code
       - uses: actions/checkout@v3
 
+      # 2. Set up Python
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
 
+      # 3. Install dependencies + DVC
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install dvc
 
+      # 4. Pull the dataset via DVC
+      - name: DVC pull
+        run: dvc pull
+
+      # 5. Lint your code
       - name: Lint with flake8
-        run: |
-          flake8 src tests
+        run: flake8 src tests
 
-      - name: Run tests
-        run: |
-          pytest --maxfail=1 --disable-warnings -q
+      # 6. Run unit tests
+      - name: Test with pytest
+        run: pytest --maxfail=1 --disable-warnings -q
